@@ -1,0 +1,268 @@
+# Kod w skrypcie dla narzędzia PaddleMicrocantilever
+
+# WPROWADZANIE DANYCH
+
+# Opcja czyszczenia poprzednich modeli
+ClearTextBox = Beta.InputHelper.CreateComboBox("Clear", "Clear the window", "No", "Yes")
+# Wprowadzanie nazwy
+CompNameTextBox = Beta.InputHelper.CreateTextBox("Component Name",  "Component Name", ValueType.String)
+CompNameTextBox.Value="Paddle Microcantilever"
+# Wprowadzanie wymiarów
+W1TextBox = Beta.InputHelper.CreateTextBox("W1 (um)",  "Width W1", ValueType.PositiveDouble)
+W1TextBox.Value = 300
+W2TextBox = Beta.InputHelper.CreateTextBox("W2 (um)", "Width W2", ValueType.PositiveDouble)
+W2TextBox.Value = 150
+L1TextBox = Beta.InputHelper.CreateTextBox("L1 (um)", "Length L1", ValueType.PositiveDouble)
+L1TextBox.Value = 300
+L2TextBox = Beta.InputHelper.CreateTextBox("L2 (um)", "Length L2", ValueType.PositiveDouble)
+L2TextBox.Value = 300
+HTextBox = Beta.InputHelper.CreateTextBox("H (um)", "Height H", ValueType.PositiveDouble)
+HTextBox.Value = 10
+# Wprowadzanie pozycji
+OriginXTextBox = Beta.InputHelper.CreateTextBox("x (um)", "Origin x position", ValueType.Double)
+OriginXTextBox.Value = 0
+OriginZTextBox = Beta.InputHelper.CreateTextBox("z (um)", "Origin z position", ValueType.Double)
+OriginZTextBox.Value = 0
+# Wybór orientacji
+OrientComboBox = Beta.InputHelper.CreateComboBox("Orientation in X","Orientation with respect to X axis direction","Compatible","Reversed")
+
+ParameterGroup = Beta.InputHelper.CreateOptionsGroup("Set Paddle Microcantilever Parameters", ClearTextBox, CompNameTextBox, W1TextBox, W2TextBox, L1TextBox, L2TextBox, HTextBox, OrientComboBox, OriginXTextBox, OriginZTextBox)
+        
+result = Beta.InputHelper.PauseAndGetInput("Define Paddle Microcantilever Parameters", ParameterGroup)
+enable = result.Success
+
+# CZYSZCZENIE EKRANU
+if ClearTextBox.Value == "Yes":
+    while GetRootPart().Bodies.Count>0:
+        GetRootPart().Bodies[0].Delete()
+    while GetRootPart().Curves.Count>0:
+        GetRootPart().Curves[0].Delete()
+
+# DEFINICJA FUNKCJI
+def CreatePaddleMicrocantilever(Origin, W1, W2, L1, L2, H, Orient):
+    # Wybór płaszczyzny
+    plane = Plane.PlaneZX
+    result = ViewHelper.SetSketchPlane(plane)
+    # Ustawianie parametrów
+    A1 = 0.5*W2
+    A2 = 0.5*W1
+    if Orient == "Reversed":
+        L1 = -L1
+        L2 = -L2
+        H = -H
+    # Rysowanie odcinków
+    start = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]))
+    end = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]))
+    end = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]+L1))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]))
+    end = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]+L1))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]+L1))
+    end = Point2D.Create(UM(Origin[2]-A2), UM(Origin[0]+L1))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]+L1))
+    end = Point2D.Create(UM(Origin[2]+A2), UM(Origin[0]+L1))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]-A2), UM(Origin[0]+L1))
+    end = Point2D.Create(UM(Origin[2]-A2), UM(Origin[0]+L1+L2))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]+A2), UM(Origin[0]+L1))
+    end = Point2D.Create(UM(Origin[2]+A2), UM(Origin[0]+L1+L2))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]+A2), UM(Origin[0]+L1+L2))
+    end = Point2D.Create(UM(Origin[2]-A2), UM(Origin[0]+L1+L2))
+    result = SketchLine.Create(start, end)
+
+    # Zaznaczanie wszystkich linii
+    curves = []
+    j = GetRootPart().Curves.Count
+    i=8
+    while j>j-i:
+        curves.append(GetRootPart().Curves[j-i])
+        i = i-1
+    # Wypełnianie obrysu	
+    selection = Selection.Create(curves)
+    secondarySelection = Selection()
+    options = FillOptions()
+    result = Fill.Execute(selection, secondarySelection, options, FillMode.ThreeD)
+    # Zaznaczenie powstałej płaszczyzny i wyciągnięcie do bryły
+    b = GetRootPart().Bodies.Count
+    f = GetRootPart().Bodies[b-1].Faces.Count
+    face = GetRootPart().Bodies[b-1].Faces[f-1]
+    
+    selection = Selection.Create(face)
+    options = ExtrudeFaceOptions()
+    options.ExtrudeType = ExtrudeType.Cut
+    result = ExtrudeFaces.Execute(selection, UM(-H), options)   
+    
+    # Przejście do trybu bryłowego
+    mode = InteractionMode.Solid
+    result = ViewHelper.SetViewMode(mode, Info6)    
+    
+#Parametry wejściowe
+W1=W1TextBox.Value
+W2=W2TextBox.Value
+L1=L1TextBox.Value
+L2=L2TextBox.Value
+H=HTextBox.Value
+Origin = [OriginXTextBox.Value, 0, OriginZTextBox.Value]
+Orient = OrientComboBox.Value
+
+# WYWOŁANIE FUNKCJI
+if W2<W1 and CompNameTextBox.Value and (enable==True):
+    #Wywołanie funkcji z odpowiednimi parametrami
+    CreatePaddleMicrocantilever(Origin, W1, W2, L1, L2, H, Orient)
+
+# Wyświetlenie komunikatów w przypadku błędu         
+elif (enable==False):
+    result = Beta.InputHelper.PauseAndGetInput("Tworzenie geometrii nie powiodlo sie")
+else:
+    result = Beta.InputHelper.PauseAndGetInput("Nieprawidlowe wartosci")
+
+ 
+# Kod w skrypcie dla narzędzia Microbridge
+
+
+# WPROWADZANIE DANYCH
+
+# Opcja czyszczenia poprzednich modeli
+ClearTextBox = Beta.InputHelper.CreateComboBox("Clear", "Clear the window", "No", "Yes")
+# Wprowadzanie nazwy
+CompNameTextBox = Beta.InputHelper.CreateTextBox("Component Name",  "Component Name", ValueType.String)
+CompNameTextBox.Value="Paddle Microcantilever"
+# Wprowadzanie wymiarów
+W1TextBox = Beta.InputHelper.CreateTextBox("W1 (um)",  "Width W1", ValueType.PositiveDouble)
+W1TextBox.Value = 100
+W2TextBox = Beta.InputHelper.CreateTextBox("W2 (um)", "Width W2", ValueType.PositiveDouble)
+W2TextBox.Value = 200
+L1TextBox = Beta.InputHelper.CreateTextBox("L1 (um)", "Length L1", ValueType.PositiveDouble)
+L1TextBox.Value = 100
+L2TextBox = Beta.InputHelper.CreateTextBox("L2 (um)", "Length L2", ValueType.PositiveDouble)
+L2TextBox.Value = 200
+HTextBox = Beta.InputHelper.CreateTextBox("H (um)", "Height H", ValueType.PositiveDouble)
+HTextBox.Value = 10
+# Wprowadzanie pozycji
+OriginXTextBox = Beta.InputHelper.CreateTextBox("x (um)", "Origin x position", ValueType.Double)
+OriginXTextBox.Value = 0
+OriginZTextBox = Beta.InputHelper.CreateTextBox("z (um)", "Origin z position", ValueType.Double)
+OriginZTextBox.Value = 0
+
+ParameterGroup = Beta.InputHelper.CreateOptionsGroup("Set Trapezoid Paddle-Type Microbridge Parameters", ClearTextBox, CompNameTextBox, W1TextBox, W2TextBox, L1TextBox, L2TextBox, HTextBox, OriginXTextBox, OriginZTextBox)
+        
+result = Beta.InputHelper.PauseAndGetInput("Define Trapezoid Paddle-Type Microbridge Parameters", ParameterGroup)
+enable = result.Success
+
+# CZYSZCZENIE EKRANU
+if ClearTextBox.Value == "Yes":
+    while GetRootPart().Bodies.Count>0:
+        GetRootPart().Bodies[0].Delete()
+    while GetRootPart().Curves.Count>0:
+        GetRootPart().Curves[0].Delete()
+  
+# DEFINICJA FUNKCJI
+def CreateMicrobridge(Origin, W1, W2, L1, L2, H):
+    # Wybór płaszczyzny
+    plane = Plane.PlaneZX
+    result = ViewHelper.SetSketchPlane(plane)
+   
+    # Ustawianie parametrów
+    A1 = 0.5*W1
+    A2 = 0.5*W2
+
+    # Rysowanie odcinków
+    start = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]))
+    end = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]))
+    end = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]+L1))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]))
+    end = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]+L1))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]+L1))
+    end = Point2D.Create(UM(Origin[2]-A2), UM(Origin[0]+L1+0.5*L2))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]+L1))
+    end = Point2D.Create(UM(Origin[2]+A2), UM(Origin[0]+L1+0.5*L2))
+    result = SketchLine.Create(start, end)
+    
+    start = Point2D.Create(UM(Origin[2]-A2), UM(Origin[0]+L1+0.5*L2))
+    end = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]+L1+L2))
+    result = SketchLine.Create(start, end)
+
+    start = Point2D.Create(UM(Origin[2]+A2), UM(Origin[0]+L1+0.5*L2))
+    end = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]+L1+L2))
+    result = SketchLine.Create(start, end)
+    
+    start = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]+L1+L2))
+    end = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]+L1+L2+L1))
+    result = SketchLine.Create(start, end)
+    
+    start = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]+L1+L2))
+    end = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]+L1+L2+L1))
+    result = SketchLine.Create(start, end)
+    
+    start = Point2D.Create(UM(Origin[2]-A1), UM(Origin[0]+L1+L2+L1))
+    end = Point2D.Create(UM(Origin[2]+A1), UM(Origin[0]+L1+L2+L1))
+    result = SketchLine.Create(start, end)
+
+    # Zaznaczanie wszystkich linii
+    curves = []
+    j = GetRootPart().Curves.Count
+    i=10
+    while j>j-i:
+        curves.append(GetRootPart().Curves[j-i])
+        i = i-1
+
+    # Wypełnianie obrysu
+    selection = Selection.Create(curves)
+    secondarySelection = Selection()
+    options = FillOptions()
+    result = Fill.Execute(selection, secondarySelection, options, FillMode.ThreeD)
+
+    # Zaznaczenie powstałej płaszczyzny i wyciągnięcie do bryły
+    b = GetRootPart().Bodies.Count
+    f = GetRootPart().Bodies[b-1].Faces.Count
+    face = GetRootPart().Bodies[b-1].Faces[f-1]
+    
+    selection = Selection.Create(face)
+    options = ExtrudeFaceOptions()
+    options.ExtrudeType = ExtrudeType.Cut
+    result = ExtrudeFaces.Execute(selection, UM(-H), options)   
+    
+    # Przejście do trybu bryłowego
+    mode = InteractionMode.Solid
+    result = ViewHelper.SetViewMode(mode)
+    
+#Parametry wejsciowe
+W1=W1TextBox.Value
+W2=W2TextBox.Value
+L1=L1TextBox.Value
+L2=L2TextBox.Value
+H=HTextBox.Value
+Origin = [OriginXTextBox.Value, 0, OriginZTextBox.Value]
+
+# WYWOŁANIE FUNKCJI
+if W1<W2 and CompNameTextBox.Value and (enable==True):
+    #Wywołanie funkcji z odpowiednimi parametrami
+    CreateMicrobridge(Origin, W1, W2, L1, L2, H)
+
+# Wyświetlenie komunikatów w przypadku błędu 
+elif (enable==False):
+    result = Beta.InputHelper.PauseAndGetInput("Tworzenie geometrii nie powiodlo sie")
+else:
+    result = Beta.InputHelper.PauseAndGetInput("Nieprawidlowe wartosci")
